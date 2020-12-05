@@ -1,0 +1,104 @@
+@import url("//fonts.googleapis.com/css?family=Lobster|Cabin:400,700");
+
+.Title{
+  font-family: 'Comic Sans MS', cursive, sans-serif;
+  font-weight: 500;
+  font-size: 35px;
+  line-height: 1.1;
+  text-align: center;
+  margin-top: 5%;
+  margin-bottom: 2%;
+  color: white;
+}
+.SubTitle{
+  font-family: 'Comic Sans MS', cursive, sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  text-align: center;
+  color: green;
+}
+.SubSubTitle{
+ font-family: 'Comic Sans MS', cursive, sans-serif;
+  font-weight: 500;
+  font-size: 20px;
+  color: green; 
+}
+.Separation{
+  font-family: 'Comic Sans MS', cursive, sans-serif;
+  font-weight: 700;
+  font-size: 25px;
+  color: green;
+}
+h3{
+  font-family: 'Comic Sans MS', cursive, sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  color: red;
+}
+.Line1{
+  border-bottom: 3px solid white;
+    margin-left: auto;
+    margin-right: auto;
+    width: 65%;
+    margin-bottom: 0.5%;
+    border-radius: 650px;
+}
+.Line2{
+  border-bottom: 3px solid white;
+    margin-left: auto;
+    margin-right: auto;
+    width: 55%;
+    border-radius: 650px;
+    
+    margin-bottom: 3%;
+}
+.LineX{
+  border-bottom: 3px solid white;
+    width: 80%;
+    border-radius: 650px;
+    margin: 3% auto 3% auto;
+}
+.Line3{
+  border-bottom: 3px solid white;
+    margin-left: auto;
+    margin-right: auto;
+    width: 55%;
+    border-radius: 650px;
+}
+.Line4{
+  border-bottom: 3px solid white;
+    margin-left: auto;
+    margin-right: auto;
+    width: 65%;
+    margin-top: 0.5%;
+    border-radius: 650px;
+}
+.FooterDescription{
+  float:left;
+  font-size: 25px;
+  font-weight: 500;
+  font-family: 'Comic Sans MS', cursive, sans-serif;
+  color: white;
+  text-align: center;
+  
+  margin-bottom: 1%;
+  margin-top: 2%;
+}
+.SpecialBOX{
+  border: 2px solid grey; 
+  background-color: white;
+  margin: 2% 5% 2% 5%;
+  padding:2%;
+  text-align: center;
+}
+
+h1{
+  color: white;
+  font-size: 50px;
+}
+
+body {
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-image: radial-gradient(circle, rgba(48,145,20,1) 0%, rgba(8,91,15,1) 59%, rgba(4,28,1,1) 100%);
+}
