@@ -23,11 +23,15 @@
   font-size: 20px;
   color: green; 
 }
-.Separation{
-  font-family: 'Comic Sans MS', cursive, sans-serif;
-  font-weight: 700;
-  font-size: 25px;
-  color: green;
+.BorderSep{
+  border: 3px dashed green;
+  border-radius: 20px;
+  padding: 5%;
+}
+.CenterBox{
+  padding-left: 20%;
+  margin-left: 15%;
+  margin-right: 15%;
 }
 h3{
   font-family: 'Comic Sans MS', cursive, sans-serif;

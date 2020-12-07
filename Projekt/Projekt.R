@@ -1,3 +1,5 @@
+#setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
 library(shiny)
 library(tidyRSS)
 library(solrium)
@@ -9,6 +11,8 @@ library(XML);
 library(wordcloud2);
 library(stringi);
 library(ggplot2);
+library(dplyr);
+library(DT);
 
 #POBRANIE DANYCH ZE STRONY
 
@@ -59,17 +63,18 @@ lematyzacja<-function(tekst)
     slowa<-xpathSApply(xml, '//chunkList/chunk/sentence/tok/lex/base', xmlValue, encoding="UTF-8");
     
     return(paste(slowa, collapse=" "));
+    
 }
 
 chmura<-function(tabela){
     #FUNKCJA ODPOWIEDZIALNA ZA TWORZENIE CHMURY SLOW
-    stop<-as.vector(unlist(read.csv(file="slowa.txt", header=FALSE, sep=",", fileEncoding="UTF-8")));
+    stop<-as.vector(unlist(read.csv(file="stop_words_pl.txt", header=FALSE, sep=",", fileEncoding="UTF-8")));
     
     dane2<-solr_search(conn = polaczenie, params = list(q=paste(tabela,":*"),fl=paste(tabela), rows=-1));
-    
+
     dokumenty<-Corpus(VectorSource(stri_enc_toutf8(dane2)));
     
-    dokumenty<-tm_map(dokumenty, removePunctuation);
+    dokumenty<-tm_map(dokumenty, removePunctuation, preserve_intra_word_dashes=TRUE);
     dokumenty<-tm_map(dokumenty, removeNumbers);
     dokumenty<-tm_map(dokumenty, removeWords, stop);
     
@@ -83,26 +88,22 @@ chmura<-function(tabela){
     }
     
     tdm1<-TermDocumentMatrix(dokumenty);
-    View(tdm1)
     m1<-as.matrix(tdm1);
-    View(m1)
     v<-sort(rowSums(m1),decreasing=TRUE);
-    View(v)
     d<-data.frame(words=names(v), freq=v);
-    View(d)
     
     return(d);
 }
 
-ilosc_slow<-function(tabela2, numberROW){
+ilosc_slow<-function(tabela2){
     #FUNKCJA ODPOWIEDZIALNA ZA TWORZENIE CHMURY SLOW
     stop<-as.vector(unlist(read.csv(file="slowa.txt", header=FALSE, sep=",", fileEncoding="UTF-8")));
     
-    dane2<-solr_search(conn = polaczenie, params = list(q=paste(tabela2,":*"),fl=paste(tabela2), rows=paste(numberROW)));
+    dane2<-solr_search(conn = polaczenie, params = list(q=paste(tabela2,":*"),fl=paste(tabela2), rows=-1));
     
     dokumenty<-Corpus(VectorSource(stri_enc_toutf8(dane2)));
     
-    dokumenty<-tm_map(dokumenty, removePunctuation);
+    dokumenty<-tm_map(dokumenty, removePunctuation, preserve_intra_word_dashes=TRUE);
     dokumenty<-tm_map(dokumenty, removeNumbers);
     dokumenty<-tm_map(dokumenty, removeWords, stop);
     
@@ -118,11 +119,8 @@ ilosc_slow<-function(tabela2, numberROW){
     tdm1<-TermDocumentMatrix(dokumenty);
     m1<-as.matrix(tdm1);
     v<-sort(rowSums(m1),decreasing=TRUE);
-    i<-data.frame(words=names(v), freq=v);
-    View(i)
     
-    
-    return(i);
+    return(v);
 }
 
 #UI aplikacji
@@ -149,8 +147,7 @@ ui <- fluidPage(
            selectInput(inputId="color1",label=h4("Wybierz kolor"),
                        choices = c("Czerwony"="Czerwony","Niebieski"="Niebieski","Zielony"="Zielony"),
                         selected = "Zielony",multiple = F),
-           
-           
+         
            actionButton("buttonA1","Start"),
            
         ),
@@ -158,7 +155,6 @@ ui <- fluidPage(
         mainPanel(
             plotOutput("WykresA1")
         ),
-        
     ),
     tags$div(class="LineX"),
     
@@ -176,7 +172,6 @@ ui <- fluidPage(
             
             actionButton("buttonA2","Start"),
         ),
-        
         mainPanel(
             wordcloud2Output('WykresA2')
         ),
@@ -189,7 +184,6 @@ ui <- fluidPage(
             tags$p("Analiza czestosci wystepowania slowa", class="SubTitle"),
             selectInput(inputId="SelectTab3",label=h4("Wybierz dane"),choices = c("Tytul"="Tytul","Zawartosc"="Zawartosc"),
                         selected = "Tytul",multiple = F),
-            numericInput("numberROW", h4("Numer rzedu:"), value = 5, min = 1, max = 10, step = 1),
             textInput("slowo2", h4("Slowo do wyszukania: ")),
             
             actionButton("buttonA3","Start"),
@@ -197,24 +191,17 @@ ui <- fluidPage(
         
         mainPanel(
             fluidRow(class="SpecialBOX",
-                tags$p(class="SubSubTitle", "Wczytana tabela:"),
-                h3(textOutput("tabelaoutput", container = span)),
-                tags$p(class="Separation","-------------------------------"),
-                
-                tags$p(class="SubSubTitle", "Wczytany nr. artykulu:"),
-                h3(textOutput("nroutput", container = span)),
-                tags$p(class="Separation","-------------------------------"),
-                
-                
-                tags$p(class="SubSubTitle", "Wybrane slowo:"),
-                h3(textOutput("slowooutput", container = span)),
-                tags$p(class="Separation","-------------------------------"),
-                
-                
-                tags$p(class="SubSubTitle", "Ilosc slow (po lematyzacji):"),
-                plotOutput("WykresA3")
-                
-            )
+                tags$div(class="BorderSep",
+                    tags$p(class="SubSubTitle", "Wczytane slowo:"),
+                    h3(textOutput("slowooutput", container = span)),
+                    tags$p(class="SubSubTitle", "Ile razy wystepuje:"),
+                  
+                    tags$div(class="CenterBox", 
+                             tableOutput('table'),
+                    )
+                ),
+            ),
+            plotOutput("WykresA3")
         ),
     ),
     
@@ -278,29 +265,29 @@ server <- function(input, output) {
     
     observeEvent(input$buttonA3,
                  {
-                     #WCZYTANE SLOWO
-                     wypisane_slowo <- eventReactive(input$buttonA3, {
+                     #WCZYTANY NUMER
+                     wypisane_slowo2 <- eventReactive(input$buttonA3, {
                          input$slowo2
                      })
                      output$slowooutput <- renderText({
-                         wypisane_slowo()
-                     })
-                     #WCZYTANA TABELA
-                     wypisana_tabela <- eventReactive(input$buttonA3, {
-                         input$SelectTab3
-                     })
-                     output$tabelaoutput <- renderText({
-                         wypisana_tabela()
-                     })
-                     #WCZYTANY NUMER
-                     wypisany_nr <- eventReactive(input$buttonA3, {
-                         input$numberROW
-                     })
-                     output$nroutput <- renderText({
-                         wypisany_nr()
+                         wypisane_slowo2()
                      })
                      #WCZYTANA ILOSC SLOW
-                     plot(ilosc_slow(input$SelectTab3, input$numberROW)) 
+                     dane <- data.frame(words=names(ilosc_slow(input$SelectTab3)), freq=ilosc_slow(input$SelectTab3))
+                     #View(dane)
+                     output$WykresA3 <- renderPlot({
+                         barplot(dane[1:10,]$freq, las = 2, names.arg = dane[1:10,]$word,
+                                 col ="#336600", main ="10 najczesciej wystepujacych slow",
+                                 ylab = "Word frequencies", ylim = c(0,30))
+                     })
+                     
+                    inputWORD <- input$slowo2
+                     outputWORD <- filter(dane,
+                                          words == toString(inputWORD)
+                                          )
+                     View(outputWORD)
+                     
+                     output$table <- renderTable({outputWORD})
                  })
     
 }
