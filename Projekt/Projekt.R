@@ -13,11 +13,13 @@ library(stringi);
 library(ggplot2);
 library(dplyr);
 library(DT);
+library(cluster);
+library(dbscan);
 
 #POBRANIE DANYCH ZE STRONY
 
 aktualnosci <- tidyfeed(feed="http://www.rss.gofin.pl/prawopracy.xml")
-
+#View(aktualnosci)
 #WCZYTANIE WYBRANYCH DANYCH DO OBIEKTOW (SENSOWNYCH)
 tytul_data <- aktualnosci$entry_title
 zawartosc_data <- aktualnosci$entry_content
@@ -44,18 +46,16 @@ solrium::add(x=dane, conn=polaczenie, name="ProjektWZWI", commit=TRUE);
 
 #FUNKCJE DO ANALIZY DANYCH
 
+#FUNKCJA ZWRACA ILE % WIERSZY TABELI tabela2 ZAWIERA WCZYTANE slowo
 analiza1<-function(slowo, tabela2){
-    #FUNKCJA ZWRACA ILE % WIERSZY TABELI TYTULY ZAWIERA WCZYTANE slowo
     dane1<-solr_search(conn = polaczenie, params = list(q=paste(tabela2,":",slowo),fl=paste(tabela2), rows=-1));
     ilosc_kolumn <- nrow(dane1)
-    #View(dane1)
     
     return(ilosc_kolumn);
 }
 
-lematyzacja<-function(tekst)
-{
-    #FUNKCJA ODPOWIEDZIALNA ZA LEMATYZACJE TEKSTU (KOPIA Z LAB4)
+lematyzacja<-function(tekst){
+    #FUNKCJA ODPOWIEDZIALNA ZA LEMATYZACJE TEKSTU (KOPIA Z LAB4) sprawdzanie duplikatow!
     parametry<-list(lpmn="any2txt|wcrft2", text=tekst, user="FilarKamil04@gmail.com");
     odpowiedz<-POST("http://ws.clarin-pl.eu/nlprest2/base/process", body=parametry, encode="json", verbose());
     zawartosc<-content(odpowiedz, "text", encoding="UTF-8");
@@ -63,16 +63,13 @@ lematyzacja<-function(tekst)
     slowa<-xpathSApply(xml, '//chunkList/chunk/sentence/tok/lex/base', xmlValue, encoding="UTF-8");
     
     return(paste(slowa, collapse=" "));
-    
 }
 
-chmura<-function(tabela){
-    #FUNKCJA ODPOWIEDZIALNA ZA TWORZENIE CHMURY SLOW
+#FUNKCJA ODPOWIEDZIALNA ZA PRZYGOTOWANIE DANYCH DO ANALIZY
+przygotowanie_danych<-function(dane){
     stop<-as.vector(unlist(read.csv(file="stop_words_pl.txt", header=FALSE, sep=",", fileEncoding="UTF-8")));
     
-    dane2<-solr_search(conn = polaczenie, params = list(q=paste(tabela,":*"),fl=paste(tabela), rows=-1));
-
-    dokumenty<-Corpus(VectorSource(stri_enc_toutf8(dane2)));
+    dokumenty<-Corpus(VectorSource(stri_enc_toutf8(dane)));
     
     dokumenty<-tm_map(dokumenty, removePunctuation, preserve_intra_word_dashes=TRUE);
     dokumenty<-tm_map(dokumenty, removeNumbers);
@@ -80,7 +77,7 @@ chmura<-function(tabela){
     
     usun.znaki<-function(x) gsub("[–„”]", "", x);
     dokumenty<-tm_map(dokumenty, usun.znaki);
-
+    
     for(d in 1:length(dokumenty))
     {
         dokumenty[[d]]$content<-lematyzacja(dokumenty[[d]]$content);
@@ -95,18 +92,46 @@ chmura<-function(tabela){
     return(d);
 }
 
+#FUNKCJA ODPOWIEDZIALNA ZA TWORZENIE CHMURY SLOW
+chmura<-function(tabela){
+    dane<-solr_search(conn = polaczenie, params = list(q=paste(tabela,":*"),fl=paste(tabela), rows=-1));
+    sprawdz_duplikaty_chmura <- duplicated(dane)
+    View(sprawdz_duplikaty)
+    dane_koncowe <- przygotowanie_danych(dane)
+    return(dane_koncowe);
+}
+
+#FUNKCJA SLUZACA DO KLASTERYZACJI PRZETWORZONYCH DANYCH
+klasteryzacja <- function(tabela3, metryka, numberOFk){
+   
+    dane<-solr_search(conn = polaczenie, params = list(q=paste(tabela3,":*"),fl=paste(tabela3), rows=-1));
+    sprawdz_duplikaty_klasteryzacja <- duplicated(dane)
+    View(sprawdz_duplikaty)
+    
+    przetworzone_dane <- przygotowanie_danych(dane)
+    
+    klasteryzacja.h<-agnes(przetworzone_dane, metric=paste(metryka), method="average");
+    klaster<-cutree(klasteryzacja.h, k=paste(numberOFk));
+    tabela.wynikowa.h<-cbind(przetworzone_dane, klaster);
+    
+    plot(klasteryzacja.h, which.plots=2);
+    
+    return(tabela.wynikowa.h);
+}
+
+#FUNKCJA PRZYGOTOWUJE DANE DO WYPISANIA ILOSCI DANEGO SLOWA I STWORZENIA WYKRESU 10 NAJPOPULARNIEJSZYCH
 ilosc_slow<-function(tabela2){
-    #FUNKCJA ODPOWIEDZIALNA ZA TWORZENIE CHMURY SLOW
-    stop<-as.vector(unlist(read.csv(file="slowa.txt", header=FALSE, sep=",", fileEncoding="UTF-8")));
+   
+    stop<-as.vector(unlist(read.csv(file="stop_words_pl.txt", header=FALSE, sep=",", fileEncoding="UTF-8")));
     
-    dane2<-solr_search(conn = polaczenie, params = list(q=paste(tabela2,":*"),fl=paste(tabela2), rows=-1));
+    dane<-solr_search(conn = polaczenie, params = list(q=paste(tabela2,":*"),fl=paste(tabela2), rows=-1));
+    sprawdz_duplikaty_ilosc_slow <- duplicated(dane)
+    View(sprawdz_duplikaty)
     
-    dokumenty<-Corpus(VectorSource(stri_enc_toutf8(dane2)));
-    
+    dokumenty<-Corpus(VectorSource(stri_enc_toutf8(dane)));
     dokumenty<-tm_map(dokumenty, removePunctuation, preserve_intra_word_dashes=TRUE);
     dokumenty<-tm_map(dokumenty, removeNumbers);
     dokumenty<-tm_map(dokumenty, removeWords, stop);
-    
     usun.znaki<-function(x) gsub("[–„”]", "", x);
     dokumenty<-tm_map(dokumenty, usun.znaki);
     
@@ -119,7 +144,6 @@ ilosc_slow<-function(tabela2){
     tdm1<-TermDocumentMatrix(dokumenty);
     m1<-as.matrix(tdm1);
     v<-sort(rowSums(m1),decreasing=TRUE);
-    
     return(v);
 }
 
@@ -147,15 +171,14 @@ ui <- fluidPage(
            selectInput(inputId="color1",label=h4("Wybierz kolor"),
                        choices = c("Czerwony"="Czerwony","Niebieski"="Niebieski","Zielony"="Zielony"),
                         selected = "Zielony",multiple = F),
-         
            actionButton("buttonA1","Start"),
            
         ),
-
         mainPanel(
             plotOutput("WykresA1")
         ),
     ),
+    
     tags$div(class="LineX"),
     
     sidebarLayout(
@@ -195,7 +218,6 @@ ui <- fluidPage(
                     tags$p(class="SubSubTitle", "Wczytane slowo:"),
                     h3(textOutput("slowooutput", container = span)),
                     tags$p(class="SubSubTitle", "Ile razy wystepuje:"),
-                  
                     tags$div(class="CenterBox", 
                              tableOutput('table'),
                     )
@@ -203,6 +225,28 @@ ui <- fluidPage(
             ),
             plotOutput("WykresA3")
         ),
+    ),
+    tags$div(class="LineX"),
+    
+    sidebarLayout(
+        sidebarPanel( 
+            tags$p("Klasteryzacja", class="SubTitle"),
+            selectInput(inputId="SelectTab4",label=h4("Wybierz dane"),choices = c("Tytul"="Tytul","Zawartosc"="Zawartosc"),
+                        selected = "Tytul",multiple = F),
+            selectInput(inputId="SelectTab5",label=h4("Metryka"),choices = c("euclidean"="euclidean","manhattan"="manhattan"),
+                        selected = "euclidean",multiple = F),
+            numericInput("numberOFk", h4("Ilosc klastrow"), value = 2, min = 2, max = 10, step = 1),
+            actionButton("buttonA4","Start"),
+            ),
+        mainPanel(
+            fluidRow(class="SpecialBOX",
+                     tags$div(class="BorderSep",
+                              tags$div(class="CenterBox2", 
+                                       tableOutput('table2'),
+                              )
+                     ),
+                ),
+            ),
     ),
     
     tags$div(class="LineX"),
@@ -212,18 +256,13 @@ ui <- fluidPage(
     tags$div(class="FooterDescription",
              tags$p("Kamil Filar, Informatyka, rok III, lab1")
     )
-    
 )
-
 # Logika serwera
 server <- function(input, output) {
     
-    
     observeEvent(input$buttonA1,
                  {
-                    
                     output$WykresA1 <- renderPlot({
-                        
                         if(input$color1=="Czerwony"){
                             sColor = "#ff3300"
                         }else if(input$color1=="Niebieski"){
@@ -241,8 +280,8 @@ server <- function(input, output) {
                         
                     })
                  });
-    observeEvent(input$buttonA2,
-        {
+    
+    observeEvent(input$buttonA2,{
             
             output$WykresA2 <- renderWordcloud2({
                 
@@ -263,8 +302,7 @@ server <- function(input, output) {
             
         });
     
-    observeEvent(input$buttonA3,
-                 {
+    observeEvent(input$buttonA3,{
                      #WCZYTANY NUMER
                      wypisane_slowo2 <- eventReactive(input$buttonA3, {
                          input$slowo2
@@ -274,23 +312,23 @@ server <- function(input, output) {
                      })
                      #WCZYTANA ILOSC SLOW
                      dane <- data.frame(words=names(ilosc_slow(input$SelectTab3)), freq=ilosc_slow(input$SelectTab3))
-                     #View(dane)
                      output$WykresA3 <- renderPlot({
                          barplot(dane[1:10,]$freq, las = 2, names.arg = dane[1:10,]$word,
                                  col ="#336600", main ="10 najczesciej wystepujacych slow",
-                                 ylab = "Word frequencies", ylim = c(0,30))
+                                 ylab = "Czestotliwosc wystepowania", ylim = c(0,30),
+                                 xlab = "Slowo")
                      })
                      
                     inputWORD <- input$slowo2
                      outputWORD <- filter(dane,
                                           words == toString(inputWORD)
                                           )
-                     View(outputWORD)
-                     
                      output$table <- renderTable({outputWORD})
-                 })
+                 });
     
+    observeEvent(input$buttonA4,{
+       output$table2<- renderTable(klasteryzacja(input$SelectTab4, input$SelectTab5, input$numberOFk))
+    })
 }
-
 #Start aplikacji
 shinyApp(ui = ui, server = server)
