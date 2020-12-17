@@ -49,7 +49,8 @@ solrium::add(x=dane, conn=polaczenie, name="ProjektWZWI", commit=TRUE);
 #FUNKCJA ZWRACA ILE % WIERSZY TABELI tabela2 ZAWIERA WCZYTANE slowo
 analiza1<-function(slowo, tabela2){
     dane1<-solr_search(conn = polaczenie, params = list(q=paste(tabela2,":",slowo),fl=paste(tabela2), rows=-1));
-    ilosc_kolumn <- nrow(dane1)
+    dane_koncowe <- unique(dane1)
+    ilosc_kolumn <- nrow(dane_koncowe)
     
     return(ilosc_kolumn);
 }
@@ -97,7 +98,8 @@ chmura<-function(tabela){
     dane<-solr_search(conn = polaczenie, params = list(q=paste(tabela,":*"),fl=paste(tabela), rows=-1));
     sprawdz_duplikaty_chmura <- duplicated(dane)
     View(sprawdz_duplikaty)
-    dane_koncowe <- przygotowanie_danych(dane)
+    dane_z_solra <- przygotowanie_danych(dane)
+    dane_koncowe <- unique(dane_z_solra)
     return(dane_koncowe);
 }
 
@@ -109,10 +111,12 @@ klasteryzacja <- function(tabela3, metryka, numberOFk){
     View(sprawdz_duplikaty)
     
     przetworzone_dane <- przygotowanie_danych(dane)
+    dane_z_solra <- przygotowanie_danych(dane)
+    dane_koncowe <- unique(dane_z_solra)
     
-    klasteryzacja.h<-agnes(przetworzone_dane, metric=paste(metryka), method="average");
+    klasteryzacja.h<-agnes(dane_koncowe, metric=paste(metryka), method="average");
     klaster<-cutree(klasteryzacja.h, k=paste(numberOFk));
-    tabela.wynikowa.h<-cbind(przetworzone_dane, klaster);
+    tabela.wynikowa.h<-cbind(dane_koncowe, klaster);
     
     plot(klasteryzacja.h, which.plots=2);
     
@@ -126,8 +130,8 @@ ilosc_slow<-function(tabela2){
     
     dane<-solr_search(conn = polaczenie, params = list(q=paste(tabela2,":*"),fl=paste(tabela2), rows=-1));
     sprawdz_duplikaty_ilosc_slow <- duplicated(dane)
-    View(sprawdz_duplikaty)
-    
+    View(sprawdz_duplikaty_ilosc_slow)
+
     dokumenty<-Corpus(VectorSource(stri_enc_toutf8(dane)));
     dokumenty<-tm_map(dokumenty, removePunctuation, preserve_intra_word_dashes=TRUE);
     dokumenty<-tm_map(dokumenty, removeNumbers);
