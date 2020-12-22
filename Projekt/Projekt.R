@@ -49,6 +49,8 @@ solrium::add(x=dane, conn=polaczenie, name="ProjektWZWI", commit=TRUE);
 #FUNKCJA ZWRACA ILE % WIERSZY TABELI tabela2 ZAWIERA WCZYTANE slowo
 analiza1<-function(slowo, tabela2){
     dane1<-solr_search(conn = polaczenie, params = list(q=paste(tabela2,":",slowo),fl=paste(tabela2), rows=-1));
+    sprawdz_duplikaty <- duplicated(dane1)
+    View(sprawdz_duplikaty)
     dane_koncowe <- unique(dane1)
     ilosc_kolumn <- nrow(dane_koncowe)
     
@@ -132,7 +134,9 @@ ilosc_slow<-function(tabela2){
     sprawdz_duplikaty_ilosc_slow <- duplicated(dane)
     View(sprawdz_duplikaty_ilosc_slow)
 
-    dokumenty<-Corpus(VectorSource(stri_enc_toutf8(dane)));
+    dane_koncowe <- unique(dane)
+    
+    dokumenty<-Corpus(VectorSource(stri_enc_toutf8(dane_koncowe)));
     dokumenty<-tm_map(dokumenty, removePunctuation, preserve_intra_word_dashes=TRUE);
     dokumenty<-tm_map(dokumenty, removeNumbers);
     dokumenty<-tm_map(dokumenty, removeWords, stop);
